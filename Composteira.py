@@ -1,7 +1,7 @@
 import adafruit_ads1x15.ads1115 as ADS
 import paho.mqtt.client as mqtt
-import Adafruit_DHT as dht
 import RPi.GPIO as GPIO
+import datetime
 import board
 import busio
 import time
@@ -11,19 +11,12 @@ import sys
 import os
 from adafruit_ads1x15.analog_in import AnalogIn
 
-### Informações para conexão com a plataforma ThingsBoard ###
+
+### INFORMAÇÕES PARA CONEXÃO COM A PLATAFORMA THINGSBOARD ###
 THINGSBOARD_HOST = 'demo.thingsboard.io'
 ACCESS_TOKEN = '4JlWXm7ZW3nQommCSsQk'
+topic = 'v1/devices/me/telemetry'
 
-### Definição das tags para envio ao ThingsBoard ###
-sensor_data = {'temperature': 0, 'humidity': 0}
-sensor_temp = {'temperature2': 0}
-sensor_umid = {'umidade': 0}
-sensor_ph = {'ph': 0}
-
-next_reading = time.time()
-
-### Conexão via protocolo MQTT ###
 client = mqtt.Client()
 
 ### Token de Acesso ###
@@ -32,7 +25,7 @@ client.username_pw_set(ACCESS_TOKEN)
 ### Conexão ao ThingsBoard usando o protocolo MQTT em um intervalo de 60s ###
 client.connect(THINGSBOARD_HOST, 1883, 60)
 client.loop_start()
-
+        
 ### Leitura do sensor de temperatura DS18B20 ###
 os.system('modprobe w1-gpio')
 os.system('modprobe w1-therm')
@@ -65,10 +58,11 @@ canal1 = 1
 
 ### Cálculo umidade do solo ###
 def calcular_umidade(valor1):
-    valor_min = 26372
-    valor_max = 4000
+    valor_min = 22500
+    valor_max = 6500
     umidade_min = 0
     umidade_max = 100
+    
     umidade = ((valor1 - valor_min) / (valor_max - valor_min)) * (umidade_max - umidade_min) + umidade_min
     return umidade
 
@@ -78,38 +72,119 @@ def calcular_ph(valor2):
     ph = ((calculo_tensao-0) * 1.2) + 3
     return ph
 
+### Módulo relé ###
+res_aquec = 17
+cooler = 22
+stsResAquec = 0
+
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(res_aquec, GPIO.OUT)
+GPIO.setup(cooler, False)
+
+### Ativar e desativar Led indicador no ThingsBoard ###
+def ligar_resistencia():
+    GPIO.output(res_aquec, GPIO.LOW)
+    client.publish("v1/devices/me/telemetry", '{"resistencia": true}')
+    
+def ligar_cooler():
+    GPIO.output(cooler, False)   
+    client.publish("v1/devices/me/telemetry", '{"cooler": true}')
+    
+def desligar_resistencia():
+    GPIO.output(res_aquec, GPIO.HIGH)
+    client.publish("v1/devices/me/telemetry", '{"resistencia": false}')
+    
+def desligar_cooler():    
+    GPIO.output(cooler, True)
+    client.publish("v1/devices/me/telemetry", '{"cooler": false}')
+    
+### Sinais de monitoramento para o ThingsBoard ###
+sensor_temp = {'temperatura': 0}
+sensor_umid = {'umidade': 0}
+sensor_ph = {'ph': 0}
+
+cont1 = 0
+cont2 = 0
+cont3 = 0
+salvaTempo1 = 0
+salvaTempo2 = 0
+
 try:
     while True:
-        humidity,temperature = dht.read_retry(dht.DHT22, 27)
-        temperature2 = read_temp()
+        
+        if cont1 == 0:
+            salvaTempo1 = time.time()
+            cont1 = 1
+        
+        if cont2 == 0:
+            salvaTempo2 = time.time()
+            cont2 = 1
+            
+        tempoDecorrido1 = time.time() - salvaTempo1
+        tempoDecorrido2 = time.time() - salvaTempo2
+        
+        temperatura = read_temp()
         chan1 = AnalogIn(ads, canal0)
         valor1 = chan1.value
         chan2 = AnalogIn(ads, canal1)
         valor2 = chan2.value
         umidade = calcular_umidade(valor1)
         ph = calcular_ph(valor2)
-        humidity = round(humidity, 2)
-        temperature = round(temperature, 2)
-        print("Temperatura DHT22: {:g}\u00b0C, Umidade DHT22: {:.2f} %".format(temperature, humidity))
-        print("Temperatura DS18B20: {:g}\u00b0C".format(temperature2))
-        print("Umidade do solo: {:.2f} %".format(umidade))
-        print("pH do solo: {:.2f}".format(ph))
-        print("Aguardando 5 segundos para a próxima leitura")
-        print("--------------------------------------------")
-        sensor_data['temperature'] = temperature
-        sensor_data['humidity'] = humidity
-        sensor_temp['temperature2'] = temperature2
-        sensor_umid['umidade'] = umidade
-        sensor_ph['ph'] = ph
         
-        # Envio dos sinais de monitoramento para o ThingsBoard
-        client.publish('v1/devices/me/telemetry', json.dumps(sensor_data), 1)
-        client.publish('v1/devices/me/telemetry', json.dumps(sensor_temp), 1)
-        client.publish('v1/devices/me/telemetry', json.dumps(sensor_umid), 1)
-        client.publish('v1/devices/me/telemetry', json.dumps(sensor_ph), 1)
+        ### Arredondar valores para duas casas decimais ###
+        temperatura = round(temperatura, 2)
+        umidade = round(umidade, 2)
+        ph = round(ph, 2)
         
-        time.sleep(5)
+        ### Lógica para acionamento da resistência de aquecimento ###
+        if (temperatura < 35):
+                ligar_resistencia()
+               # print('Resistência ligada')
+                GPIO.output(res_aquec, GPIO.LOW)
+                cont3 += 1
+        if (temperatura >= 45):
+                desligar_resistencia()
+               # print('Resistência ligada')
+                GPIO.output(res_aquec, GPIO.HIGH)
+        ### Lógica para acionamento da ventilação forçada ###
+        if (temperatura >= 55 or umidade >= 55):
+                ligar_cooler()
+               # print('Ventilação forçada ligada')
+                GPIO.output(cooler, False)
+        else:
+                desligar_cooler()
+               # print('Ventilação forçada desligada')
+                GPIO.output(cooler, True)
         
+        ### Envio dos sinais de monitoramento para o ThingsBoard ###
+        if (tempoDecorrido1 >= 4):
+            sensor_temp['temperatura'] = temperatura
+            sensor_umid['umidade'] = umidade
+            sensor_ph['ph'] = ph
+        
+            client.publish(topic, json.dumps(sensor_temp), 1)
+            client.publish(topic, json.dumps(sensor_umid), 1)
+            client.publish(topic, json.dumps(sensor_ph), 1)
+            
+            print("Temperatura: {:.2f}\u00b0C".format(temperatura))
+            print("Umidade do solo: {:.2f} %".format(umidade))
+            print("pH do solo: {:.2f}".format(ph))
+            print("Aguardando 5 segundos para a próxima leitura")
+            print("Tempo em que a resistencia ficou ligada: {:.1f}".format(cont3/60), "minutos")
+            print("--------------------------------------------")
+            
+            cont1 = 0
+        
+        ### Envio dos sinais de monitoramento para o arquivo txt ###
+        if (tempoDecorrido2 >= 119):
+            data_e_hora = datetime.datetime.now().strftime("%d-%m-%Y  %H:%M:%S")
+        
+            with open('dados.txt', 'a') as arquivo:
+                 arquivo.write(f'{data_e_hora} - Temperatura: {temperatura}  /  Umidade: {umidade}  /  pH: {ph}\n')
+            print("dados escritos")
+            cont2 = 0
+            
 except KeyboardInterrupt:
     pass
 
