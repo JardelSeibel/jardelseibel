@@ -68,8 +68,13 @@ def calcular_umidade(valor1):
 
 ### Cálculo pH do solo ###
 def calcular_ph(valor2):
-    calculo_tensao = (valor2/65535.0) * 5.0
-    ph = ((calculo_tensao-0) * 1.2) + 3
+    valor_min = 14000
+    valor_max = 33000
+    ph_min = 3
+    ph_max = 9
+    
+    ph = ((valor2-valor_min)/(valor_max-valor_min)) * (ph_max-ph_min) + ph_min
+    
     return ph
 
 ### Módulo relé ###
@@ -138,17 +143,18 @@ try:
         ph = round(ph, 2)
         
         ### Lógica para acionamento da resistência de aquecimento ###
-        if (temperatura < 35):
+        if (temperatura < 27):
                 ligar_resistencia()
                # print('Resistência ligada')
                 GPIO.output(res_aquec, GPIO.LOW)
                 cont3 += 1
-        if (temperatura >= 45):
+        if (temperatura >= 37):
                 desligar_resistencia()
                # print('Resistência ligada')
                 GPIO.output(res_aquec, GPIO.HIGH)
+
         ### Lógica para acionamento da ventilação forçada ###
-        if (temperatura >= 55 or umidade >= 55):
+        if (temperatura >= 50 or umidade >= 65):
                 ligar_cooler()
                # print('Ventilação forçada ligada')
                 GPIO.output(cooler, False)
@@ -158,7 +164,7 @@ try:
                 GPIO.output(cooler, True)
         
         ### Envio dos sinais de monitoramento para o ThingsBoard ###
-        if (tempoDecorrido1 >= 4):
+        if (tempoDecorrido1 >= 19):
             sensor_temp['temperatura'] = temperatura
             sensor_umid['umidade'] = umidade
             sensor_ph['ph'] = ph
@@ -167,21 +173,28 @@ try:
             client.publish(topic, json.dumps(sensor_umid), 1)
             client.publish(topic, json.dumps(sensor_ph), 1)
             
+            print("--------------------------------------------")
             print("Temperatura: {:.2f}\u00b0C".format(temperatura))
             print("Umidade do solo: {:.2f} %".format(umidade))
             print("pH do solo: {:.2f}".format(ph))
-            print("Aguardando 5 segundos para a próxima leitura")
             print("Tempo em que a resistencia ficou ligada: {:.1f}".format(cont3/60), "minutos")
+            print("Aguardando 20 segundos para a próxima leitura")
             print("--------------------------------------------")
             
             cont1 = 0
         
         ### Envio dos sinais de monitoramento para o arquivo txt ###
-        if (tempoDecorrido2 >= 119):
+        if (tempoDecorrido2 >= 3579 and tempoDecorrido2 < 3599):
+            ligar_cooler()
+        else:
+            desligar_cooler()
+        
+        if (tempoDecorrido2 >= 3599):
             data_e_hora = datetime.datetime.now().strftime("%d-%m-%Y  %H:%M:%S")
         
             with open('dados.txt', 'a') as arquivo:
                  arquivo.write(f'{data_e_hora} - Temperatura: {temperatura}  /  Umidade: {umidade}  /  pH: {ph}\n')
+            
             print("dados escritos")
             cont2 = 0
             
