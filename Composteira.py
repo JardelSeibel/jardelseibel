@@ -143,18 +143,18 @@ try:
         ph = round(ph, 2)
         
         ### Lógica para acionamento da resistência de aquecimento ###
-        if (temperatura < 27):
+        if (temperatura < 28):
                 ligar_resistencia()
                # print('Resistência ligada')
                 GPIO.output(res_aquec, GPIO.LOW)
                 cont3 += 1
-        if (temperatura >= 37):
+        if (temperatura > 40):
                 desligar_resistencia()
                # print('Resistência ligada')
                 GPIO.output(res_aquec, GPIO.HIGH)
 
         ### Lógica para acionamento da ventilação forçada ###
-        if (temperatura >= 50 or umidade >= 65):
+        if (umidade > 70:
                 ligar_cooler()
                # print('Ventilação forçada ligada')
                 GPIO.output(cooler, False)
@@ -164,7 +164,7 @@ try:
                 GPIO.output(cooler, True)
         
         ### Envio dos sinais de monitoramento para o ThingsBoard ###
-        if (tempoDecorrido1 >= 19):
+        if (tempoDecorrido1 >= 20):
             sensor_temp['temperatura'] = temperatura
             sensor_umid['umidade'] = umidade
             sensor_ph['ph'] = ph
@@ -189,7 +189,7 @@ try:
         else:
             desligar_cooler()
         
-        if (tempoDecorrido2 >= 3599):
+        if (tempoDecorrido2 >= 3600):
             data_e_hora = datetime.datetime.now().strftime("%d-%m-%Y  %H:%M:%S")
         
             with open('dados.txt', 'a') as arquivo:
