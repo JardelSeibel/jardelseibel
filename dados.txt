@@ -1,4 +1,3 @@
-
 07-11-2023  11:30:21 - Temperatura: 31.12  /  Umidade: 56.7  /  pH: 7.03
 07-11-2023  12:30:22 - Temperatura: 31.5  /  Umidade: 47.15  /  pH: 6.4
 07-11-2023  13:39:32 - Temperatura: 31.25  /  Umidade: 48.15  /  pH: 5.98
@@ -40,7 +39,7 @@
 09-11-2023  01:39:44 - Temperatura: 31.0  /  Umidade: 97.52  /  pH: 7.66
 09-11-2023  02:39:44 - Temperatura: 38.94  /  Umidade: 99.56  /  pH: 7.66
 09-11-2023  03:39:45 - Temperatura: 32.56  /  Umidade: 99.69  /  pH: 7.66
-09-11-2023  04:39:45 - Temperatura: 28.06  /  Umidade: 101.42  /  pH: 7.66
+09-11-2023  04:39:45 - Temperatura: 28.06  /  Umidade: 99.42  /  pH: 7.66
 09-11-2023  05:39:45 - Temperatura: 29.62  /  Umidade: 99.12  /  pH: 7.66
 09-11-2023  06:39:45 - Temperatura: 28.12  /  Umidade: 40.52  /  pH: 6.82
 09-11-2023  07:39:46 - Temperatura: 28.44  /  Umidade: 62.78  /  pH: 6.82
